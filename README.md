@@ -1,29 +1,41 @@
-# Fluent::Plugin::Route
+# fluent-plugin-route
 
-TODO: Write a gem description
+Fluentd output plugin to rewrite tags to route messages.
 
-## Installation
+## Configuration
 
-Add this line to your application's Gemfile:
+Configuration example:
 
-    gem 'fluent-plugin-route'
+    <match worker.**>
+      type route
+      remove_tag_prefix worker
+      <route **>
+        add_tag_prefix metrics.event
+        copy
+      </route>
+      <route **>
+        add_tag_prefix backup
+        copy
+      </route>
+    </match>
 
-And then execute:
+    <match metrics.event.**>
+      type stdout
+    </match>
 
-    $ bundle
+    <match backup.**>
+      type file
+      path /var/log/fluent/bakcup
+    </match>
 
-Or install it yourself as:
+## TODO
 
-    $ gem install fluent-plugin-route
+* tests
 
-## Usage
+## Copyright
 
-TODO: Write usage instructions here
-
-## Contributing
-
-1. Fork it
-2. Create your feature branch (`git checkout -b my-new-feature`)
-3. Commit your changes (`git commit -am 'Added some feature'`)
-4. Push to the branch (`git push origin my-new-feature`)
-5. Create new Pull Request
+* Copyright
+  * The original version of `out_route` is written by @frsyuki.
+  * TAGOMORI Satoshi (tagomoris)
+* License
+  * Apache License, Version 2.0
