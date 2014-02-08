@@ -1,4 +1,4 @@
-# fluent-plugin-route
+# fluent-plugin-route, a plugin for [Fluentd](http://fluentd.org)
 
 Fluentd output plugin to rewrite tags to route messages.
 
