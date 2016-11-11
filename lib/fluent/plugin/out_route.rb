@@ -31,11 +31,12 @@ module Fluent
       # TODO tag_transform regexp
       attr_accessor :copy
 
-      def initialize(pattern)
+      def initialize(pattern, router)
         super()
         if !pattern || pattern.empty?
           pattern = '**'
         end
+        @router = router
         @pattern = MatchPattern.create(pattern)
         @tag_cache = {}
       end
@@ -73,7 +74,7 @@ module Fluent
             @tag_cache[tag] = ntag
           end
         end
-        Engine.emit_stream(ntag, es)
+        @router.emit_stream(ntag, es)
       end
     end
 
@@ -86,13 +87,18 @@ module Fluent
 
     config_param :remove_tag_prefix, :string, :default => nil
     config_param :add_tag_prefix, :string, :default => nil
-  # TODO tag_transform regexp
+    # TODO tag_transform regexp
 
     attr_reader :routes
 
     # Define `log` method for v0.10.42 or earlier
     unless method_defined?(:log)
       define_method("log") { $log }
+    end
+
+    # Define `router` method of v0.12 to support v0.10 or earlier
+    unless method_defined?(:router)
+      define_method("router") { ::Fluent::Engine }
     end
 
     def configure(conf)
@@ -112,7 +118,7 @@ module Fluent
       conf.elements.select {|e|
         e.name == 'route'
       }.each {|e|
-        route = Route.new(e.arg)
+        route = Route.new(e.arg, router)
         route.configure(e)
         @routes << route
       }
