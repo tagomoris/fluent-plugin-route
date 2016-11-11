@@ -51,6 +51,10 @@ module Fluent
         if conf['copy']
           @copy = true
         end
+        if label_name = conf['@label']
+          label = Fluent::Engine.root_agent.find_label(label_name)
+          @router = label.event_router
+        end
         if @remove_tag_prefix
           @prefix_match = /^#{Regexp.escape(@remove_tag_prefix)}\.?/
         else
