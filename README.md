@@ -4,14 +4,14 @@
 
 ## Configuration
 
-Configuration example:
+### Example 1: Use only tag
 
     <match worker.**>
-      type route
+      @type route
       remove_tag_prefix worker
       <route **>
         add_tag_prefix metrics.event
-        copy
+        copy # For fall-through. Without copy, routing is stopped here. 
       </route>
       <route **>
         add_tag_prefix backup
@@ -20,13 +20,39 @@ Configuration example:
     </match>
 
     <match metrics.event.**>
-      type stdout
+      @type stdout
     </match>
 
     <match backup.**>
-      type file
+      @type file
       path /var/log/fluent/bakcup
     </match>
+
+### Example 2: Use label
+
+    <match worker.**>
+      @type route
+      remove_tag_prefix worker
+      add_tag_prefix metrics.event
+      <route **>
+        copy
+      </route>
+      <route **>
+        copy
+        @label @BACKUP
+      </route>
+    </match>
+
+    <match metrics.event.**>
+      @type stdout
+    </match>
+
+    <label @BACKUP>
+      <match metrics.event.**>
+        @type file
+        path /var/log/fluent/bakcup
+      </match>
+    </label>
 
 ## TODO
 
