@@ -47,6 +47,8 @@ module Fluent
         super
         if conf['copy']
           @copy = true
+        else
+          @copy = false
         end
         if label_name = conf['@label']
           label = Fluent::Engine.root_agent.find_label(label_name)
