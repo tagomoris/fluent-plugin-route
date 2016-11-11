@@ -16,13 +16,10 @@
 #    limitations under the License.
 #
 require 'fluent/output'
-require 'fluent/mixin/config_placeholders'
 
 module Fluent
   class RouteOutput < MultiOutput
     Plugin.register_output('route', self)
-
-    include Fluent::Mixin::ConfigPlaceholders
 
     class Route
       include Configurable
