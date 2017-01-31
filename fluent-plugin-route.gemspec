@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 Gem::Specification.new do |gem|
   gem.name          = "fluent-plugin-route"
-  gem.version       = "0.1.4"
+  gem.version       = "0.2.0"
   gem.authors       = ["TAGOMORI Satoshi", "FURUHASHI Sadayuki"]
   gem.email         = ["tagomoris@gmail.com", "frsyuki@gmail.com"]
   gem.summary       = %q{Fluentd plugin to route messages in fluentd processes}
@@ -14,7 +14,7 @@ Gem::Specification.new do |gem|
   gem.test_files    = gem.files.grep(%r{^(test|spec|features)/})
   gem.require_paths = ["lib"]
 
-  gem.add_runtime_dependency "fluentd"
+  gem.add_runtime_dependency "fluentd", "< 0.14.0"
   gem.add_development_dependency "rake"
   gem.add_development_dependency "test-unit"
 end
