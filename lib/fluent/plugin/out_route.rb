@@ -15,55 +15,82 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 #
-require 'fluent/output'
+require 'fluent/plugin/bare_output'
+require 'fluent/match'
 
-module Fluent
-  class RouteOutput < MultiOutput
-    Plugin.register_output('route', self)
+module Fluent::Plugin
+  class RouteOutput < BareOutput
+    Fluent::Plugin.register_output('route', self)
+
+    helpers :event_emitter
+
+    config_section :route, param_name: :route_configs, multi: true, required: true do
+      config_argument :pattern, :string, default: '**'
+      config_param :@label, :string, default: nil
+      config_param :remove_tag_prefix, :string, default: nil
+      config_param :add_tag_prefix, :string, default: nil
+      config_param :copy, :bool, default: false
+    end
+
+    config_param :remove_tag_prefix, :string, default: nil
+    config_param :add_tag_prefix, :string, default: nil
+
+    config_param :match_cache_size, :integer, default: 256
+    config_param :tag_cache_size, :integer, default: 256
+
+    attr_reader :routes
+
+    def tag_modifier(remove_tag_prefix, add_tag_prefix)
+      tag_cache_size = @tag_cache_size
+      cache = {}
+      mutex = Mutex.new
+      removed_prefix = remove_tag_prefix ? remove_tag_prefix + "." : ""
+      added_prefix = add_tag_prefix ? add_tag_prefix + "." : ""
+      ->(tag){
+        if cached = cache[tag]
+          cached
+        else
+          modified = tag.start_with?(removed_prefix) ? tag.sub(removed_prefix, added_prefix) : added_prefix + tag
+          mutex.synchronize do
+            if cache.size >= tag_cache_size
+              remove_keys = cache.keys[0...(tag_cache_size / 2)]
+              cache.delete_if{|key, _value| remove_keys.include?(key) }
+            end
+            cache[tag] = modified
+          end
+          modified
+        end
+      }
+    end
+
+    def configure(conf)
+      if conf.elements(name: 'store').size > 0
+        raise Fluent::ConfigError, "<store> section is not available in route plugin"
+      end
+
+      super
+
+      @match_cache = {}
+      @routes = []
+      @route_configs.each do |rc|
+        route_router = event_emitter_router(rc['@label'])
+        modifier = tag_modifier(rc.remove_tag_prefix, rc.add_tag_prefix)
+        @routes << Route.new(rc.pattern, route_router, modifier, rc.copy)
+      end
+      @default_tag_modifier = (@remove_tag_prefix || @add_tag_prefix) ? tag_modifier(@remove_tag_prefix, @add_tag_prefix) : nil
+      @mutex = Mutex.new
+    end
 
     class Route
-      include Configurable
-
-      config_param :remove_tag_prefix, :string, :default => nil
-      config_param :add_tag_prefix, :string, :default => nil
-      # TODO tag_transform regexp
-      attr_accessor :copy
-
-      def initialize(pattern, router)
-        super()
-        if !pattern || pattern.empty?
-          pattern = '**'
-        end
+      def initialize(pattern, router, tag_modifier, copy)
         @router = router
-        @pattern = MatchPattern.create(pattern)
-        @tag_cache = {}
+        @pattern = Fluent::MatchPattern.create(pattern)
+        @tag_modifier = tag_modifier
+        @copy = copy
       end
 
       def match?(tag)
         @pattern.match(tag)
-      end
-
-      def configure(conf)
-        super
-        if conf['copy']
-          @copy = true
-        else
-          @copy = false
-        end
-        if label_name = conf['@label']
-          label = Fluent::Engine.root_agent.find_label(label_name)
-          @router = label.event_router
-        end
-        if @remove_tag_prefix
-          @prefix_match = /^#{Regexp.escape(@remove_tag_prefix)}\.?/
-        else
-          @prefix_match = //
-        end
-        if @add_tag_prefix
-          @tag_prefix = "#{@add_tag_prefix}."
-        else
-          @tag_prefix = ""
-        end
       end
 
       def copy?
@@ -71,97 +98,48 @@ module Fluent
       end
 
       def emit(tag, es)
-        ntag = @tag_cache[tag]
-        unless ntag
-          ntag = tag.sub(@prefix_match, @tag_prefix)
-          if @tag_cache.size < 1024  # TODO size limit
-            @tag_cache[tag] = ntag
-          end
-        end
-        @router.emit_stream(ntag, es)
+        tag = @tag_modifier.call(tag)
+        @router.emit_stream(tag, es)
       end
     end
 
-    def initialize
-      super
-      @routes = []
-      @tag_cache = {}
-      @match_cache = {}
-    end
-
-    config_param :remove_tag_prefix, :string, :default => nil
-    config_param :add_tag_prefix, :string, :default => nil
-    # TODO tag_transform regexp
-
-    attr_reader :routes
-
-    # Define `log` method for v0.10.42 or earlier
-    unless method_defined?(:log)
-      define_method("log") { $log }
-    end
-
-    # Define `router` method of v0.12 to support v0.10 or earlier
-    unless method_defined?(:router)
-      define_method("router") { ::Fluent::Engine }
-    end
-
-    def configure(conf)
-      super
-
-      if @remove_tag_prefix
-        @prefix_match = /^#{Regexp.escape(@remove_tag_prefix)}\.?/
-      else
-        @prefix_match = //
-      end
-      if @add_tag_prefix
-        @tag_prefix = "#{@add_tag_prefix}."
-      else
-        @tag_prefix = ""
-      end
-
-      conf.elements.select {|e|
-        e.name == 'route'
-      }.each {|e|
-        route = Route.new(e.arg, router)
-        route.configure(e)
-        @routes << route
-      }
-    end
-
-    def emit(tag, es, chain)
-      ntag, targets = @match_cache[tag]
+    def process(tag, es)
+      modified_tag, targets = @match_cache[tag]
       unless targets
-        ntag = tag.sub(@prefix_match, @tag_prefix)
+        modified_tag = @default_tag_modifier ? @default_tag_modifier.call(tag) : tag
         targets = []
-        @routes.each {|r|
-          if r.match?(ntag)
+        @routes.each do |r|
+          if r.match?(modified_tag)
             targets << r
             break unless r.copy?
           end
-        }
-        if @match_cache.size < 1024  # TODO size limit
-          @match_cache[tag] = [ntag, targets]
+        end
+
+        @mutex.synchronize do
+          if @match_cache.size >= @match_cache_size
+            remove_keys = @match_cache.keys[0...(@match_cache_size / 2)]
+            @match_cache.delete_if{|key, _value| remove_keys.include?(key) }
+          end
+          @match_cache[tag] = [modified_tag, targets]
         end
       end
 
       case targets.size
       when 0
-        return
+        # do nothing
       when 1
-        targets.first.emit(ntag, es)
-        chain.next
+        targets.first.emit(modified_tag, es)
       else
-        unless es.repeatable?
-          m = MultiEventStream.new
-          es.each {|time,record|
-            m.add(time, record)
-          }
-          es = m
+        targets.each do |target|
+          dup_es = if es.respond_to?(:dup)
+                     es.dup
+                   else
+                     m_es = MultiEventStream.new
+                     es.each{|t,r| m_es.add(t, r) }
+                     m_es
+                   end
+          target.emit(modified_tag, dup_es)
         end
-        targets.each {|t|
-          t.emit(ntag, es)
-        }
-        chain.next
       end
     end
   end
