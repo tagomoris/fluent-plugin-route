@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 Gem::Specification.new do |gem|
   gem.name          = "fluent-plugin-route"
-  gem.version       = "0.2.0"
+  gem.version       = "1.0.0"
   gem.authors       = ["TAGOMORI Satoshi", "FURUHASHI Sadayuki"]
   gem.email         = ["tagomoris@gmail.com", "frsyuki@gmail.com"]
   gem.summary       = %q{Fluentd plugin to route messages in fluentd processes}
