@@ -2,6 +2,13 @@
 
 [Fluentd](http://fluentd.org) output plugin to rewrite tags to route messages.
 
+## Requirements
+
+| fluent-plugin-route | fluentd    | ruby   |
+|---------------------|------------|--------|
+| >= 1.0.0            | >= v0.14.0 | >= 2.1 |
+| <  1.0.0            | <  v0.14.0 | >= 1.9 |
+
 ## Configuration
 
 ### Example 1: Use only tag
