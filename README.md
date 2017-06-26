@@ -68,7 +68,7 @@
 ## Copyright
 
 * Copyright
-  * The original version of `out_route` is written by @frsyuki.
+  * The [original version of `out_route`](https://github.com/frsyuki/fluent-plugin-route) is written by @frsyuki.
   * TAGOMORI Satoshi (tagomoris)
 * License
   * Apache License, Version 2.0
