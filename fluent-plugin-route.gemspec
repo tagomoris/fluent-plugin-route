@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 Gem::Specification.new do |gem|
   gem.name          = "fluent-plugin-route"
   gem.version       = "1.0.0"
@@ -7,7 +6,7 @@ Gem::Specification.new do |gem|
   gem.summary       = %q{Fluentd plugin to route messages in fluentd processes}
   gem.description   = %q{This is copy of out_route.rb originally written by frsyuki}
   gem.homepage      = "https://github.com/tagomoris/fluent-plugin-route"
-  gem.license       = "APLv2"
+  gem.license       = "Apache-2.0"
 
   gem.files         = `git ls-files`.split($\)
   gem.executables   = gem.files.grep(%r{^bin/}).map{ |f| File.basename(f) }
